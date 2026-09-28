@@ -113,6 +113,7 @@
           <button class="act" id="deny" type="button">Deny</button>
           <button class="act primary" id="approve" type="button">Approve</button>
         </div>
+        <button class="act link" type="button" id="switchAcct">← not you? use a different email</button>
         <p class="note">This connector can only read FedEx tracking, rates and cost reports. It cannot create, change or cancel anything.</p>
       </section>
 
@@ -207,6 +208,8 @@
         location.replace(r.redirect_url);
       };
       $("approve").onclick = () => decide(true);
+      // The page remembers the last sign-in in this browser; let people switch before approving.
+      $("switchAcct").onclick = async () => { await supabase.auth.signOut(); location.reload(); };
       $("deny").onclick = () => decide(false);
     }
 

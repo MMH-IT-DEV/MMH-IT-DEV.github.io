@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>MMH FedEx Reporting · Sign in</title>
+  <style>
+    :root { --bg: #f6f7f9; --card: #fff; --text: #1a1d21; --muted: #5d6570; --line: #e3e6ea; --accent: #4d148c; --accent-text: #fff; --danger: #b42318; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #111317; --card: #1a1d22; --text: #eef0f3; --muted: #9aa3ad; --line: #2b3038; --accent: #8b5cf6; --accent-text: #fff; --danger: #f97066; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px;
+           background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card { width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
+    .row span:first-child { color: var(--muted); }
+    .row span:last-child { text-align: right; word-break: break-all; }
+    .note { font-size: 13px; color: var(--muted); margin: 16px 0 0; }
+    .error { color: var(--danger); font-size: 14px; margin: 12px 0 0; }
+    .actions { display: flex; gap: 10px; margin-top: 20px; }
+    button { flex: 1; font: inherit; font-weight: 600; padding: 11px 14px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--text); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+    button:disabled { opacity: .6; cursor: default; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>MMH FedEx Reporting</h1>
+    <p class="sub" id="status">Loading…</p>
+
+    <section id="signin" hidden>
+      <p>Sign in with your <strong>@mymagichealer.com</strong> Google account to continue.</p>
+      <div class="actions"><button class="primary" id="google">Sign in with Google</button></div>
+    </section>
+
+    <section id="consent" hidden>
+      <div class="row"><span>App</span><span id="client"></span></div>
+      <div class="row"><span>Returns to</span><span id="redirect"></span></div>
+      <div class="row"><span>Signed in as</span><span id="email"></span></div>
+      <div class="row"><span>Access</span><span>Read-only FedEx reports</span></div>
+      <div class="actions">
+        <button id="deny">Deny</button>
+        <button class="primary" id="approve">Approve</button>
+      </div>
+      <p class="note">This connector can only read FedEx tracking, rates and cost reports. It cannot create, change or cancel anything.</p>
+    </section>
+
+    <p class="error" id="error" hidden></p>
+  </main>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
+
+    // Public by design: the project URL and its publishable key. All access control
+    // happens server-side (OAuth 2.1 server, MMH-only sign-up hook, MCP domain check).
+    const SUPABASE_URL = "https://trcejwpnezjuirkilssl.supabase.co";
+    const PUBLISHABLE_KEY = "sb_publishable_wIxzdARA-BurzFO78Ukgtw_Rj0QafKQ";
+    const MMH_DOMAIN = "mymagichealer.com";
+
+    const $ = (id) => document.getElementById(id);
+    const show = (id) => { for (const s of ["signin", "consent"]) $(s).hidden = s !== id; };
+    const status = (t) => { $("status").textContent = t; };
+    const fail = (t) => { $("error").textContent = t; $("error").hidden = false; };
+
+    const supabase = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+      auth: { flowType: "pkce", detectSessionInUrl: true, persistSession: true },
+    });
+
+    const params = new URLSearchParams(location.search);
+    const authorizationId = params.get("authorization_id");
+
+    async function main() {
+      if (!authorizationId) {
+        status("Nothing to approve.");
+        fail("This page is opened by Claude or ChatGPT when you connect the MMH FedEx connector.");
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        status("Step 1 of 2: sign in");
+        show("signin");
+        $("google").onclick = async () => {
+          $("google").disabled = true;
+          // Come back to this exact URL (with authorization_id) after Google.
+          const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
+          const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: { redirectTo: back, queryParams: { hd: MMH_DOMAIN, prompt: "select_account" } },
+          });
+          if (error) { $("google").disabled = false; fail(error.message); }
+        };
+        return;
+      }
+
+      const email = session.user?.email ?? "";
+      if (!email.toLowerCase().endsWith("@" + MMH_DOMAIN)) {
+        await supabase.auth.signOut();
+        status("Wrong account");
+        fail(`${email} is not an @${MMH_DOMAIN} account. Reload and sign in with your MMH account.`);
+        return;
+      }
+
+      const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
+      if (error) { status("Could not load the request"); fail(error.message); return; }
+      if (data.redirect_url) { status("Already approved, returning…"); location.replace(data.redirect_url); return; }
+
+      status("Step 2 of 2: approve access");
+      $("client").textContent = data.client?.name || "Unnamed app";
+      try { $("redirect").textContent = new URL(data.redirect_uri).host; } catch { $("redirect").textContent = data.redirect_uri; }
+      $("email").textContent = data.user?.email || email;
+      show("consent");
+
+      const decide = async (approve) => {
+        $("approve").disabled = $("deny").disabled = true;
+        const fn = approve ? supabase.auth.oauth.approveAuthorization : supabase.auth.oauth.denyAuthorization;
+        const { data: r, error: e } = await fn.call(supabase.auth.oauth, authorizationId, { skipBrowserRedirect: true });
+        if (e) { $("approve").disabled = $("deny").disabled = false; fail(e.message); return; }
+        status(approve ? "Approved, returning…" : "Denied, returning…");
+        location.replace(r.redirect_url);
+      };
+      $("approve").onclick = () => decide(true);
+      $("deny").onclick = () => decide(false);
+    }
+
+    main().catch((e) => { status("Something went wrong"); fail(String(e?.message ?? e)); });
+  </script>
+</body>
+</html>

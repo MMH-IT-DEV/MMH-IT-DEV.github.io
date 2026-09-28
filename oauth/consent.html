@@ -43,7 +43,7 @@
     .pill { font-size: 9px; letter-spacing: .8px; text-transform: uppercase; padding: 2px 7px; border: 1px solid var(--cyan); color: var(--cyan); white-space: nowrap; }
     .tbtn { font: 9px var(--mono); letter-spacing: .7px; text-transform: uppercase; color: var(--txt-dim); background: transparent; border: 1px solid var(--line); padding: 3px 7px; cursor: pointer; }
     .tbtn:hover { color: var(--mid); border-color: var(--dim); }
-    main { border: 1px solid var(--line); border-top: none; background: var(--bg-panel); padding: 22px 20px 20px; }
+    main { border: 1px solid var(--line); background: var(--bg-panel); padding: 22px 20px 20px; }
     .steps { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); margin-bottom: 18px; }
     .step { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; padding: 7px 10px; color: var(--txt-faint); }
     .step + .step { border-left: 1px solid var(--line); }
@@ -82,12 +82,6 @@
 </head>
 <body data-step="loading">
   <div class="wrap">
-    <div class="hdr">
-      <span class="hdr-title">MMH · FedEx reporting</span>
-      <span class="rule"></span>
-      <span class="pill">read-only</span>
-      <button class="tbtn" id="theme" type="button">dark</button>
-    </div>
     <main>
       <div class="steps"><span class="step" id="st1">01 · sign in</span><span class="step" id="st2">02 · approve</span></div>
       <h1>Connect to FedEx reporting</h1>
@@ -138,12 +132,6 @@
 
     const $ = (id) => document.getElementById(id);
     const show = (id) => { for (const s of ["signin", "consent"]) $(s).hidden = s !== id; document.body.dataset.step = id; };
-
-    // Light by default, like the guide; the choice is remembered per browser.
-    const applyTheme = (t) => { document.documentElement.dataset.theme = t; $("theme").textContent = t === "light" ? "dark" : "light"; };
-    let theme = "light"; try { theme = localStorage.getItem("mmh-login-theme") || "light"; } catch {}
-    applyTheme(theme);
-    $("theme").onclick = () => { theme = theme === "light" ? "dark" : "light"; applyTheme(theme); try { localStorage.setItem("mmh-login-theme", theme); } catch {} };
     const status = (t) => { $("status").textContent = t; };
     const fail = (t) => { $("error").textContent = t; $("error").hidden = false; };
 

@@ -1,23 +1,94 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
   <title>MMH FedEx Reporting</title>
   <style>
-    :root { --bg: #f6f7f9; --card: #fff; --text: #1a1d21; --muted: #5d6570; --line: #e3e6ea; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #111317; --card: #1a1d22; --text: #eef0f3; --muted: #9aa3ad; --line: #2b3038; } }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--text);
-           font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    .card { max-width: 420px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 28px; }
-    h1 { font-size: 18px; margin: 0 0 8px; } p { color: var(--muted); margin: 0; }
+    /* Same terminal-HUD system as the FedEx Connector Guide (docs/connector-guide.html):
+       paper-terminal light by default, hairline frames, mono uppercase labels,
+       corner brackets, violet for the one committing action. */
+    :root {
+      --bg: #eef1ec; --bg-panel: #fbfcfa; --bg-hdr: #e4eae4; --bg-hover: #eff4ee; --bg-input: #ffffff;
+      --line: #c2cec6; --line-soft: #dde4dd;
+      --txt: #1b2b24; --txt-dim: #4a6459; --txt-dim2: #5f7a6d; --txt-faint: #8ba093;
+      --hi: #1b2b24; --mid: #2e5f49; --dim: #619a80;
+      --violet: #63549b; --violet-hi: #493d78; --violet-a: rgba(99,84,155,.11);
+      --cyan: #3f7d88; --cyan-a: rgba(63,125,136,.10); --red: #a4503f; --red-a: rgba(164,80,63,.10);
+      --scan: rgba(27,43,36,.02); --wash: rgba(63,122,95,.05);
+      --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+    }
+    :root[data-theme="dark"] {
+      --bg: #0e0e0e; --bg-panel: #151515; --bg-hdr: #1b1b1b; --bg-hover: #1e1e1e; --bg-input: #101010;
+      --line: #333333; --line-soft: #242424;
+      --txt: #e8e8e8; --txt-dim: #9c9c9c; --txt-dim2: #787878; --txt-faint: #4a4a4a;
+      --hi: #ffffff; --mid: #d8d8d8; --dim: #6a6a6a;
+      --violet: #9788c6; --violet-hi: #b3a6dd; --violet-a: rgba(151,136,198,.14);
+      --cyan: #6fb6c2; --cyan-a: rgba(111,182,194,.12); --red: #c9705f; --red-a: rgba(201,112,95,.12);
+      --scan: rgba(255,255,255,.022); --wash: rgba(255,255,255,.04);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; color: var(--txt);
+      font: 13px/1.6 var(--mono); background: var(--bg);
+      background-image: repeating-linear-gradient(to bottom, var(--scan) 0 1px, transparent 1px 3px),
+                        radial-gradient(120% 50% at 50% 0%, var(--wash), transparent 70%); }
+    .wrap { width: 100%; max-width: 460px; }
+    .hdr { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--bg-hdr); border: 1px solid var(--line); position: relative; }
+    .hdr::before, .hdr::after { content: ""; position: absolute; top: 3px; width: 7px; height: 7px; border-top: 1px solid var(--dim); }
+    .hdr::before { left: 3px; border-left: 1px solid var(--dim); } .hdr::after { right: 3px; border-right: 1px solid var(--dim); }
+    .hdr-title { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--mid); white-space: nowrap; }
+    .rule { flex: 1; height: 1px; min-width: 8px; background: repeating-linear-gradient(to right, var(--line) 0 4px, transparent 4px 7px); }
+    .pill { font-size: 9px; letter-spacing: .8px; text-transform: uppercase; padding: 2px 7px; border: 1px solid var(--cyan); color: var(--cyan); white-space: nowrap; }
+    .tbtn { font: 9px var(--mono); letter-spacing: .7px; text-transform: uppercase; color: var(--txt-dim); background: transparent; border: 1px solid var(--line); padding: 3px 7px; cursor: pointer; }
+    .tbtn:hover { color: var(--mid); border-color: var(--dim); }
+    main { border: 1px solid var(--line); border-top: none; background: var(--bg-panel); padding: 22px 20px 20px; }
+    .steps { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); margin-bottom: 18px; }
+    .step { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; padding: 7px 10px; color: var(--txt-faint); }
+    .step + .step { border-left: 1px solid var(--line); }
+    body[data-step="signin"] #st1, body[data-step="consent"] #st2 { color: var(--violet); background: var(--violet-a); }
+    body[data-step="consent"] #st1 { color: var(--cyan); }
+    body[data-step="consent"] #st1::after { content: " ✓"; }
+    h1 { margin: 0 0 4px; font-size: 16px; font-weight: 600; letter-spacing: .3px; color: var(--hi); }
+    .sub { margin: 0 0 16px; color: var(--txt-dim); font-size: 12px; }
+    .label { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--txt-dim); display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+    .label::before { content: "▪"; color: var(--mid); }
+    p { margin: 0 0 12px; }
+    strong { color: var(--hi); }
+    form.email { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+    input { font: 13px var(--mono); padding: 10px 12px; border: 1px solid var(--line); background: var(--bg-input); color: var(--txt); border-radius: 0; outline: none; }
+    input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-a); }
+    input#codeInput { font-size: 20px; letter-spacing: 8px; text-align: center; }
+    button.act { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; padding: 10px 14px; cursor: pointer;
+      border: 1px solid var(--line); background: transparent; color: var(--txt-dim); border-radius: 0; }
+    button.act:hover { color: var(--mid); border-color: var(--dim); background: var(--bg-hover); }
+    button.act.primary { background: var(--violet); border-color: var(--violet); color: #fff; }
+    button.act.primary:hover { background: var(--violet-hi); border-color: var(--violet-hi); color: #fff; }
+    button.act.link { border: none; padding: 4px 0; text-align: left; font-size: 10px; }
+    button:disabled { opacity: .55; cursor: default; }
+    .kv { border: 1px solid var(--line); margin-bottom: 14px; }
+    .kv > div { display: flex; justify-content: space-between; gap: 16px; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+    .kv > div:last-child { border-bottom: none; }
+    .kv span:first-child { color: var(--txt-dim2); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding-top: 1px; }
+    .kv span:last-child { color: var(--hi); text-align: right; word-break: break-all; }
+    .kv .ro { color: var(--cyan) !important; }
+    .actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+    .note { font-size: 11px; color: var(--txt-dim2); margin: 12px 0 0; }
+    .error { color: var(--red); background: var(--red-a); border: 1px solid var(--red); padding: 8px 10px; font-size: 12px; margin: 14px 0 0; }
+    footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-top: 10px; font-size: 10px; color: var(--txt-faint); letter-spacing: .4px; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <main class="card">
-    <h1>MMH FedEx Reporting</h1>
-    <p>Sign-in page for the MMH FedEx reporting connector in Claude and ChatGPT. Open the connector from Claude or ChatGPT to sign in.</p>
-  </main>
+  <div class="wrap">
+    <div class="hdr"><span class="hdr-title">MMH · FedEx reporting</span><span class="rule"></span><span class="pill">read-only</span></div>
+    <main>
+      <h1>MMH FedEx Reporting</h1>
+      <p class="sub">Sign-in page for the MMH FedEx reporting connector in Claude and ChatGPT.</p>
+      <p>Open the connector from Claude or ChatGPT to sign in. This page opens by itself when it is needed.</p>
+    </main>
+    <footer><span>only @mymagichealer.com accounts</span><span>MMH-IT-DEV</span></footer>
+  </div>
 </body>
 </html>

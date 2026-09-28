@@ -25,6 +25,8 @@
     button { flex: 1; font: inherit; font-weight: 600; padding: 11px 14px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--text); }
     button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
     button:disabled { opacity: .6; cursor: default; }
+    form.email { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+    input[type=email] { font: inherit; padding: 11px 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--text); }
     [hidden] { display: none !important; }
   </style>
 </head>
@@ -34,8 +36,13 @@
     <p class="sub" id="status">Loading…</p>
 
     <section id="signin" hidden>
-      <p>Sign in with your <strong>@mymagichealer.com</strong> Google account to continue.</p>
-      <div class="actions"><button class="primary" id="google">Sign in with Google</button></div>
+      <p>Sign in with your <strong>@mymagichealer.com</strong> account to continue.</p>
+      <form id="emailForm" class="email">
+        <input id="emailInput" type="email" required autocomplete="email" placeholder="you@mymagichealer.com">
+        <button class="primary" type="submit" id="emailBtn">Email me a sign-in link</button>
+      </form>
+      <p class="note" id="emailSent" hidden>Check your inbox and open the link in this same browser.</p>
+      <div class="actions"><button id="google">Sign in with Google</button></div>
     </section>
 
     <section id="consent" hidden>
@@ -85,10 +92,20 @@
       if (!session) {
         status("Step 1 of 2: sign in");
         show("signin");
+        // Come back to this exact URL (with authorization_id) after signing in.
+        const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
+        $("emailForm").onsubmit = async (ev) => {
+          ev.preventDefault();
+          const address = $("emailInput").value.trim().toLowerCase();
+          if (!address.endsWith("@" + MMH_DOMAIN)) { fail(`Use your @${MMH_DOMAIN} address.`); return; }
+          $("emailBtn").disabled = true;
+          const { error } = await supabase.auth.signInWithOtp({ email: address, options: { emailRedirectTo: back } });
+          if (error) { $("emailBtn").disabled = false; fail(error.message); return; }
+          $("error").hidden = true;
+          $("emailSent").hidden = false;
+        };
         $("google").onclick = async () => {
           $("google").disabled = true;
-          // Come back to this exact URL (with authorization_id) after Google.
-          const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
           const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: { redirectTo: back, queryParams: { hd: MMH_DOMAIN, prompt: "select_account" } },

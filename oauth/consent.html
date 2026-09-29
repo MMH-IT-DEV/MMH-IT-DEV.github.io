@@ -59,7 +59,6 @@
     form.email { display: flex; flex-direction: column; gap: 10px; margin: 0; }
     input { font: 13px var(--mono); padding: 10px 12px; border: 1px solid var(--line); background: var(--bg-input); color: var(--txt); border-radius: 0; outline: none; }
     input:focus { border-color: var(--violet); box-shadow: 0 0 0 3px var(--violet-a); }
-    input#codeInput { font-size: 20px; letter-spacing: 8px; text-align: center; }
     button.act { font: 11px var(--mono); letter-spacing: 1px; text-transform: uppercase; padding: 10px 14px; cursor: pointer;
       border: 1px solid var(--line); background: transparent; color: var(--txt-dim); border-radius: 0; }
     button.act:hover { color: var(--mid); border-color: var(--dim); background: var(--bg-hover); }
@@ -88,16 +87,12 @@
       <p class="sub" id="status">Loading…</p>
 
       <section id="signin" hidden>
-        <form id="emailForm" class="email">
-          <input id="emailInput" type="email" required autocomplete="email" placeholder="you@mymagichealer.com">
-          <button class="act primary" type="submit" id="emailBtn">Send code</button>
+        <form id="pwForm" class="email">
+          <input type="email" name="username" value="fedex-mcp@mymagichealer.com" autocomplete="username" hidden>
+          <input id="pwInput" type="password" required autocomplete="current-password" placeholder="MMH team password">
+          <button class="act primary" type="submit" id="pwBtn">Sign in</button>
         </form>
-        <form id="codeForm" class="email" hidden>
-          <p class="note" id="codeNote" style="margin-top:0">Check your inbox for a code from MMH FedEx Reporting. You can also click the link in that email.</p>
-          <input id="codeInput" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,10}" maxlength="10" required placeholder="······">
-          <button class="act primary" type="submit" id="codeBtn">Verify</button>
-          <button class="act link" type="button" id="restart">← use a different email</button>
-        </form>
+        <p class="note">The password is in 1Password. No access? Ask Erik.</p>
       </section>
 
       <section id="consent" hidden>
@@ -105,30 +100,28 @@
         <div class="kv">
           <div><span>App</span><span id="client"></span></div>
           <div><span>Returns to</span><span id="redirect"></span></div>
-          <div><span>Signed in as</span><span id="email"></span></div>
-          <div><span>Access</span><span class="ro">read-only FedEx reports</span></div>
+                    <div><span>Access</span><span class="ro">read-only FedEx reports</span></div>
         </div>
         <div class="actions">
           <button class="act" id="deny" type="button">Deny</button>
           <button class="act primary" id="approve" type="button">Approve</button>
         </div>
-        <button class="act link" type="button" id="switchAcct">← not you? use a different email</button>
         <p class="note">This connector can only read FedEx tracking, rates and cost reports. It cannot create, change or cancel anything.</p>
       </section>
 
       <p class="error" id="error" hidden></p>
     </main>
-    <footer><span>only @mymagichealer.com accounts</span><span>MMH-IT-DEV</span></footer>
+    <footer><span>MMH team only</span><span>MMH-IT-DEV</span></footer>
   </div>
 
   <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm";
 
     // Public by design: the project URL and its publishable key. All access control
-    // happens server-side (OAuth 2.1 server, MMH-only sign-up hook, MCP domain check).
+    // happens server-side (OAuth 2.1 server, admin-created team account, MCP account check).
     const SUPABASE_URL = "https://trcejwpnezjuirkilssl.supabase.co";
     const PUBLISHABLE_KEY = "sb_publishable_wIxzdARA-BurzFO78Ukgtw_Rj0QafKQ";
-    const MMH_DOMAIN = "mymagichealer.com";
+    const TEAM_EMAIL = "fedex-mcp@mymagichealer.com";   // the one shared account; people only type its password
 
     const $ = (id) => document.getElementById(id);
     const show = (id) => { for (const s of ["signin", "consent"]) $(s).hidden = s !== id; document.body.dataset.step = id; };
@@ -153,38 +146,22 @@
       if (!session) {
         status("Step 1 of 2: sign in");
         show("signin");
-        // Come back to this exact URL (with authorization_id) after signing in (email link or code).
         const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
-        let address = "";
-        $("emailForm").onsubmit = async (ev) => {
+        $("pwInput").focus();
+        $("pwForm").onsubmit = async (ev) => {
           ev.preventDefault();
-          address = $("emailInput").value.trim().toLowerCase();
-          if (!address.endsWith("@" + MMH_DOMAIN)) { fail(`Use your @${MMH_DOMAIN} address.`); return; }
-          $("emailBtn").disabled = true;
-          const { error } = await supabase.auth.signInWithOtp({ email: address, options: { emailRedirectTo: back } });
-          $("emailBtn").disabled = false;
-          if (error) { fail(error.message); return; }
-          $("error").hidden = true;
-          $("emailForm").hidden = true; $("codeForm").hidden = false; $("codeInput").focus();
-          $("codeNote").textContent = `We sent a code to ${address}. Enter it below, or click the link in that email.`;
-        };
-        $("codeForm").onsubmit = async (ev) => {
-          ev.preventDefault();
-          $("codeBtn").disabled = true;
-          const { error } = await supabase.auth.verifyOtp({ email: address, token: $("codeInput").value.trim(), type: "email" });
-          $("codeBtn").disabled = false;
-          if (error) { fail(error.message); return; }
+          $("pwBtn").disabled = true;
+          const { error } = await supabase.auth.signInWithPassword({ email: TEAM_EMAIL, password: $("pwInput").value });
+          $("pwBtn").disabled = false;
+          if (error) { fail(error.message === "Invalid login credentials" ? "Wrong password." : error.message); return; }
           location.replace(back);   // reload with the new session, then show the approve step
         };
-        $("restart").onclick = () => { $("codeForm").hidden = true; $("emailForm").hidden = false; $("error").hidden = true; };
         return;
       }
 
-      const email = session.user?.email ?? "";
-      if (!email.toLowerCase().endsWith("@" + MMH_DOMAIN)) {
-        await supabase.auth.signOut();
-        status("Wrong account");
-        fail(`${email} is not an @${MMH_DOMAIN} account. Reload and sign in with your MMH account.`);
+      if ((session.user?.email ?? "").toLowerCase() !== TEAM_EMAIL) {
+        await supabase.auth.signOut();   // an old session from the email-code sign-in
+        location.reload();
         return;
       }
 
@@ -195,7 +172,6 @@
       status("Step 2 of 2: approve access");
       $("client").textContent = data.client?.name || "Unnamed app";
       try { $("redirect").textContent = new URL(data.redirect_uri).host; } catch { $("redirect").textContent = data.redirect_uri; }
-      $("email").textContent = data.user?.email || email;
       show("consent");
 
       const decide = async (approve) => {
@@ -207,8 +183,6 @@
         location.replace(r.redirect_url);
       };
       $("approve").onclick = () => decide(true);
-      // The page remembers the last sign-in in this browser; let people switch before approving.
-      $("switchAcct").onclick = async () => { await supabase.auth.signOut(); location.reload(); };
       $("deny").onclick = () => decide(false);
     }
 

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>MMH FedEx Reporting · Sign in</title>
+  <title>MMH Shipping Reports · Sign in</title>
   <style>
     /* Same terminal-HUD system as the FedEx Connector Guide (docs/connector-guide.html):
        paper-terminal light by default, hairline frames, mono uppercase labels,
@@ -83,7 +83,7 @@
   <div class="wrap">
     <main>
       <div class="steps"><span class="step" id="st1">01 · sign in</span><span class="step" id="st2">02 · approve</span></div>
-      <h1>Connect to FedEx reporting</h1>
+      <h1>Connect to MMH shipping reports</h1>
       <p class="sub" id="status">Loading…</p>
 
       <section id="signin" hidden>
@@ -100,13 +100,13 @@
         <div class="kv">
           <div><span>App</span><span id="client"></span></div>
           <div><span>Returns to</span><span id="redirect"></span></div>
-                    <div><span>Access</span><span class="ro">read-only FedEx reports</span></div>
+                    <div><span>Access</span><span class="ro">read-only FedEx + Canada Post reports</span></div>
         </div>
         <div class="actions">
           <button class="act" id="deny" type="button">Deny</button>
           <button class="act primary" id="approve" type="button">Approve</button>
         </div>
-        <p class="note">This connector can only read FedEx tracking, rates and cost reports. It cannot create, change or cancel anything.</p>
+        <p class="note">These connectors can only read FedEx and Canada Post shipping and cost reports. They cannot create, change or cancel anything.</p>
       </section>
 
       <p class="error" id="error" hidden></p>
@@ -138,7 +138,7 @@
     async function main() {
       if (!authorizationId) {
         status("Nothing to approve.");
-        fail("This page is opened by Claude or ChatGPT when you connect the MMH FedEx connector.");
+        fail("This page is opened by Claude or ChatGPT when you connect the MMH FedEx or Canada Post connector.");
         return;
       }
 

@@ -45,8 +45,8 @@
     <form id="pwForm">
       <div class="lbl">1 · Connector sign-in</div>
       <div style="display:grid;gap:8px;margin-top:8px">
-        <input type="email" name="username" value="fedex-mcp@mymagichealer.com" autocomplete="username" hidden>
-        <label for="pwInput">Team password<input id="pwInput" type="password" required autocomplete="current-password"></label>
+        <label for="emailInput">Email<input id="emailInput" type="email" name="username" required autocomplete="username"></label>
+        <label for="pwInput">Password<input id="pwInput" type="password" name="password" required autocomplete="current-password"></label>
         <div class="row"><button class="go" id="pwBtn" type="submit">Sign in</button></div>
       </div>
     </form>
@@ -113,13 +113,16 @@
       if (!session) {
         show("pwForm");
         const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
-        $("pwInput").focus();
+        $("emailInput").focus();
         $("pwForm").onsubmit = async (ev) => {
           ev.preventDefault();
+          $("error").hidden = true;
+          // Only the team account can sign in here; any other email gets the same message as a wrong password.
+          if ($("emailInput").value.trim().toLowerCase() !== TEAM_EMAIL) { fail("Wrong email or password."); return; }
           $("pwBtn").disabled = true;
           const { error } = await supabase.auth.signInWithPassword({ email: TEAM_EMAIL, password: $("pwInput").value });
           $("pwBtn").disabled = false;
-          if (error) { fail(error.message === "Invalid login credentials" ? "Wrong password." : error.message); return; }
+          if (error) { fail(error.message === "Invalid login credentials" ? "Wrong email or password." : error.message); return; }
           location.replace(back);   // reload with the new session, then show the approve step
         };
         return;

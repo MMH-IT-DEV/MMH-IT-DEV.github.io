@@ -104,7 +104,7 @@
 
     async function main() {
       if (!authorizationId) {
-        status("");
+        $("status").hidden = true;
         fail("No connection request. Open this page from the Connect button in Claude or ChatGPT.");
         return;
       }

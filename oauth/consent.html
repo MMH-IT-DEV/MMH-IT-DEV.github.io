@@ -82,7 +82,8 @@
     // happens server-side (OAuth 2.1 server, admin-created team account, MCP account check).
     const SUPABASE_URL = "https://trcejwpnezjuirkilssl.supabase.co";
     const PUBLISHABLE_KEY = "sb_publishable_wIxzdARA-BurzFO78Ukgtw_Rj0QafKQ";
-    const TEAM_EMAIL = "fedex-mcp@mymagichealer.com";   // the one shared account; people only type its password
+    const TEAM_EMAIL = "shipping-mcp@mymagichealer.com";   // the one shared account (FedEx + Canada Post)
+    const OLD_EMAIL = "fedex-mcp@mymagichealer.com";       // renamed 2026-10-09; still accepted when typed, signs in as TEAM_EMAIL
 
     const $ = (id) => document.getElementById(id);
     const SECTIONS = ["pwForm", "consent", "done"];
@@ -118,7 +119,8 @@
           ev.preventDefault();
           $("error").hidden = true;
           // Only the team account can sign in here; any other email gets the same message as a wrong password.
-          if ($("emailInput").value.trim().toLowerCase() !== TEAM_EMAIL) { fail("Wrong email or password."); return; }
+          const typed = $("emailInput").value.trim().toLowerCase();
+          if (typed !== TEAM_EMAIL && typed !== OLD_EMAIL) { fail("Wrong email or password."); return; }
           $("pwBtn").disabled = true;
           const { error } = await supabase.auth.signInWithPassword({ email: TEAM_EMAIL, password: $("pwInput").value });
           $("pwBtn").disabled = false;

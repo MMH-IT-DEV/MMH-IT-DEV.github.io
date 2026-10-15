@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>MMH Shipping Reporting · Sign in</title>
+  <title>MMH Connectors · Sign in</title>
   <style>
     /* Same window as the MMH Composio approval page (composio-team-test/consent/consent.html). */
     :root { --bg:#fff; --panel:#fcfdfc; --hdr:#f3f6f2; --line:#c9d3cc; --soft:#e3e9e4; --txt:#1b2b24; --dim:#5f7a6d; --faint:#8ba093;
@@ -38,7 +38,7 @@
 </head>
 <body>
 <div class="win" role="dialog" aria-labelledby="ttl">
-  <div class="win-bar"><b id="ttl">MMH Shipping Reporting</b></div>
+  <div class="win-bar"><b id="ttl">MMH Connectors</b></div>
   <main>
     <p class="msg" id="status">Loading…</p>
 
@@ -56,7 +56,7 @@
       <div class="kv" style="margin-top:8px">
         <span class="k">App</span><span id="client"></span>
         <span class="k">Returns to</span><span id="redirect"></span>
-        <span class="k">Connector</span><span>FedEx + Canada Post (read-only)</span>
+        <span class="k">Connector</span><span id="connector"></span>
         <span class="k">Signed in</span><span id="who"></span>
       </div>
       <div class="row" style="margin-top:10px">
@@ -82,8 +82,13 @@
     // happens server-side (OAuth 2.1 server, admin-created team account, MCP account check).
     const SUPABASE_URL = "https://trcejwpnezjuirkilssl.supabase.co";
     const PUBLISHABLE_KEY = "sb_publishable_wIxzdARA-BurzFO78Ukgtw_Rj0QafKQ";
-    const TEAM_EMAIL = "shipping-mcp@mymagichealer.com";   // the one shared account (FedEx + Canada Post)
-    const OLD_EMAIL = "fedex-mcp@mymagichealer.com";       // renamed 2026-10-09; still accepted when typed, signs in as TEAM_EMAIL
+    // Team accounts that may sign in here, and what each one connects. Every MCP also checks the
+    // signed-in email against its own allow list on the server, so this list is only the first gate.
+    const ACCOUNTS = {
+      "shipping-mcp@mymagichealer.com": "FedEx + Canada Post (read-only)",
+      "social-mcp@mymagichealer.com": "TikTok @mymagichealer (read-only)",
+    };
+    const ALIASES = { "fedex-mcp@mymagichealer.com": "shipping-mcp@mymagichealer.com" };   // renamed 2026-10-09
 
     const $ = (id) => document.getElementById(id);
     const SECTIONS = ["pwForm", "consent", "done"];
@@ -118,11 +123,12 @@
         $("pwForm").onsubmit = async (ev) => {
           ev.preventDefault();
           $("error").hidden = true;
-          // Only the team account can sign in here; any other email gets the same message as a wrong password.
+          // Only team accounts can sign in here; any other email gets the same message as a wrong password.
           const typed = $("emailInput").value.trim().toLowerCase();
-          if (typed !== TEAM_EMAIL && typed !== OLD_EMAIL) { fail("Wrong email or password."); return; }
+          const email = ALIASES[typed] ?? typed;
+          if (!ACCOUNTS[email]) { fail("Wrong email or password."); return; }
           $("pwBtn").disabled = true;
-          const { error } = await supabase.auth.signInWithPassword({ email: TEAM_EMAIL, password: $("pwInput").value });
+          const { error } = await supabase.auth.signInWithPassword({ email, password: $("pwInput").value });
           $("pwBtn").disabled = false;
           if (error) { fail(error.message === "Invalid login credentials" ? "Wrong email or password." : error.message); return; }
           location.replace(back);   // reload with the new session, then show the approve step
@@ -130,7 +136,8 @@
         return;
       }
 
-      if ((session.user?.email ?? "").toLowerCase() !== TEAM_EMAIL) {
+      const signedIn = (session.user?.email ?? "").toLowerCase();
+      if (!ACCOUNTS[signedIn]) {
         await supabase.auth.signOut();   // an old session from the email-code sign-in
         location.reload();
         return;
@@ -142,7 +149,8 @@
 
       $("client").textContent = data.client?.name || "Unnamed app";
       try { $("redirect").textContent = new URL(data.redirect_uri).host; } catch { $("redirect").textContent = data.redirect_uri; }
-      $("who").textContent = session.user?.email ?? TEAM_EMAIL;
+      $("who").textContent = signedIn;
+      $("connector").textContent = ACCOUNTS[signedIn];
       show("consent");
 
       const decide = async (approve) => {

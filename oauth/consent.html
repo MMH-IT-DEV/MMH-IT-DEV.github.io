@@ -147,10 +147,12 @@
 
       const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
       if (error) { status("Could not load the request"); fail(`${error.message} Close this page and click Connect again in Claude or ChatGPT.`); return; }
-      if (data.redirect_url) { done("Already approved. Returning to the app…", data.redirect_url); location.replace(data.redirect_url); return; }
+      // Already approved for this account: don't jump back on our own, so a saved sign-in can still be swapped.
+      const approved = Boolean(data.redirect_url);
 
       $("client").textContent = data.client?.name || "Unnamed app";
-      try { $("redirect").textContent = new URL(data.redirect_uri).host; } catch { $("redirect").textContent = data.redirect_uri; }
+      const back = data.redirect_uri ?? data.redirect_url ?? "";
+      try { $("redirect").textContent = new URL(back).host; } catch { $("redirect").textContent = back; }
       $("who").textContent = signedIn;
       $("connector").textContent = ACCOUNTS[signedIn];
       show("consent");
@@ -163,7 +165,13 @@
         done(approve ? "Approved. Returning to the app…" : "Denied. Returning to the app…", r.redirect_url);
         location.replace(r.redirect_url);
       };
-      $("approve").onclick = () => decide(true);
+      if (approved) {
+        $("approve").textContent = "Continue";
+        $("deny").hidden = true;
+        $("approve").onclick = () => { done("Returning to the app…", data.redirect_url); location.replace(data.redirect_url); };
+      } else {
+        $("approve").onclick = () => decide(true);
+      }
       $("deny").onclick = () => decide(false);
       // Each connector needs its own team account, so let a saved sign-in be swapped for another one.
       $("switch").onclick = async () => { await supabase.auth.signOut({ scope: "local" }); location.reload(); };

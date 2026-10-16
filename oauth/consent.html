@@ -117,10 +117,15 @@
         return;
       }
 
+      // Never reuse a saved sign-in: looking up the request auto-approves it for whoever is signed in,
+      // and each connector needs its own team account. So every connection starts with the password form.
+      if (!params.has("fresh") && (await supabase.auth.getSession()).data.session) {
+        await supabase.auth.signOut({ scope: "local" });
+      }
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         show("pwForm");
-        const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}`;
+        const back = `${location.origin}${location.pathname}?authorization_id=${encodeURIComponent(authorizationId)}&fresh=1`;
         $("emailInput").focus();
         $("pwForm").onsubmit = async (ev) => {
           ev.preventDefault();

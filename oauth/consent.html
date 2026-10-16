@@ -62,6 +62,7 @@
       <div class="row" style="margin-top:10px">
         <button class="go" id="approve" type="button">Approve</button>
         <button id="deny" type="button">Deny</button>
+        <button id="switch" type="button">Use a different account</button>
       </div>
     </section>
 
@@ -145,7 +146,7 @@
       }
 
       const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
-      if (error) { status("Could not load the request"); fail(error.message); return; }
+      if (error) { status("Could not load the request"); fail(`${error.message} Close this page and click Connect again in Claude or ChatGPT.`); return; }
       if (data.redirect_url) { done("Already approved. Returning to the app…", data.redirect_url); location.replace(data.redirect_url); return; }
 
       $("client").textContent = data.client?.name || "Unnamed app";
@@ -164,6 +165,8 @@
       };
       $("approve").onclick = () => decide(true);
       $("deny").onclick = () => decide(false);
+      // Each connector needs its own team account, so let a saved sign-in be swapped for another one.
+      $("switch").onclick = async () => { await supabase.auth.signOut({ scope: "local" }); location.reload(); };
     }
 
     main().catch((e) => { status("Something went wrong"); fail(String(e?.message ?? e)); });
